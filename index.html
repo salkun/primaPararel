@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Periksa Bilangan Prima - Algoritma Paralel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('bg.jpg');
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #333;
+        }
+
+        label, input[type="number"], input[type="submit"] {
+            width: 100%;
+            display: block;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        input[type="submit"] {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .result {
+            background-color: #f0f8ff;
+            padding: 10px;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        #executionTime {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Periksa Bilangan Prima (Algoritma Paralel)</h2>
+        <form id="primeForm">
+            <label for="start">Masukkan Bilangan Pertama:</label>
+            <input type="number" id="start" name="start" required>
+            <label for="end">Masukkan Bilangan Terakhir:</label>
+            <input type="number" id="end" name="end" required>
+            <input type="submit" value="Periksa">
+        </form>
+
+        <div class="result" id="resultContainer"></div>
+        <div id="executionTime"></div>
+    </div>
+
+    <script>
+        // Fungsi untuk membagi rentang menjadi bagian-bagian yang lebih kecil
+        function divideRange(start, end, workerCount) {
+            const rangeSize = Math.ceil((end - start + 1) / workerCount);
+            const ranges = [];
+
+            for (let i = 0; i < workerCount; i++) {
+                const rangeStart = start + i * rangeSize;
+                const rangeEnd = Math.min(rangeStart + rangeSize - 1, end);
+                if (rangeStart <= end) {
+                    ranges.push([rangeStart, rangeEnd]);
+                }
+            }
+
+            return ranges;
+        }
+
+        // Event listener untuk form submit
+        document.getElementById('primeForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const start = parseInt(document.getElementById('start').value);
+            const end = parseInt(document.getElementById('end').value);
+            const resultContainer = document.getElementById('resultContainer');
+            const executionTimeDiv = document.getElementById('executionTime');
+
+            // Kosongkan hasil sebelumnya
+            resultContainer.innerHTML = '';
+            executionTimeDiv.innerHTML = '';
+
+            // Tentukan jumlah worker
+            const workerCount = 4; // Jumlah worker yang kita buat
+            const ranges = divideRange(start, end, workerCount);
+            const workers = [];
+            let completedWorkers = 0;
+            let allPrimes = [];
+
+            // Mencatat waktu awal
+            const startTime = performance.now();
+            const startTimeFormatted = new Date().toLocaleTimeString();
+
+            // Fungsi callback untuk menerima hasil dari worker
+            function handleWorkerResult(e) {
+                allPrimes = allPrimes.concat(e.data); // Gabungkan hasil dari setiap worker
+                completedWorkers++;
+
+                // Jika semua worker selesai
+                if (completedWorkers === workerCount) {
+                    allPrimes.sort((a, b) => a - b); // Urutkan hasil
+                    if (allPrimes.length > 0) {
+                        resultContainer.innerHTML = `<p>Bilangan prima antara ${start} dan ${end} adalah:</p>`;
+                        resultContainer.innerHTML += allPrimes.join('<br>');
+                    } else {
+                        resultContainer.innerHTML = '<p>Tidak ada bilangan prima dalam rentang tersebut.</p>';
+                    }
+
+                    // Mencatat waktu akhir
+                    const endTime = performance.now();
+                    const endTimeFormatted = new Date().toLocaleTimeString();
+                    const executionTime = (endTime - startTime).toFixed(2); // Waktu dalam milidetik
+
+                    // Menampilkan waktu
+                    executionTimeDiv.innerHTML = `
+                        <p>Waktu awal proses: ${startTimeFormatted}</p>
+                        <p>Waktu akhir proses: ${endTimeFormatted}</p>
+                        <p>Total waktu proses: ${executionTime} ms.</p>
+                    `;
+                }
+            }
+
+            // Membuat worker untuk setiap bagian dari rentang
+            for (const range of ranges) {
+                const worker = new Worker('worker.js');
+                worker.postMessage(range); // Kirim rentang ke worker
+                worker.onmessage = handleWorkerResult; // Terima hasil dari worker
+                workers.push(worker);
+            }
+        });
+    </script>
+</body>
+</html>
